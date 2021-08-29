@@ -8,8 +8,8 @@ from loguru import logger
 from botrequests.hotels import get_hotels
 from botrequests.locations import exact_location, make_locations_list
 from data_processing.handling import gen_key, internationalize as _, is_input_correct, get_parameters_information, \
-    make_message, steps, locales, redis_db, logger_config, currencies
-
+    make_message, steps, locales, logger_config, currencies
+from bot_redis import redis_db
 
 logger.configure(**logger_config)
 load_dotenv()
