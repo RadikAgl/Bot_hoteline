@@ -1,7 +1,10 @@
-import redis
+import re
+from datetime import datetime, timedelta
+
 from telebot.types import Message
 from loguru import logger
 
+from bot_redis import redis_db
 from translations.translations import vocabulary
 
 
@@ -33,14 +36,6 @@ logger_config = {
         },
     ],
 }
-
-redis_db = redis.StrictRedis(
-    host='localhost',
-    port=6379,
-    db=1,
-    charset='utf-8',
-    decode_responses=True
-)
 
 
 def gen_key(msg: Message, additional: str) -> str:
@@ -126,3 +121,64 @@ def make_message(msg: Message, prefix: str) -> str:
     return message
 
 
+def hotel_price(hotel: dict) -> int:
+    """
+    return hotel price
+    :param hotel: dict - hotel information
+    :return: integer or float like number
+    """
+
+    price = 0
+    try:
+        if hotel.get('ratePlan').get('price').get('exactCurrent'):
+            price = hotel.get('ratePlan').get('price').get('exactCurrent')
+        else:
+            price = hotel.get('ratePlan').get('price').get('current')
+            price = int(re.sub(r'[^0-9]', '', price))
+    except Exception as e:
+        logger.warning(f'Hotel price getting error {e}')
+    return price
+
+
+def hotel_address(hotel: dict, msg: Message) -> str:
+    """
+    returns hotel address
+    :param msg: Message
+    :param hotel: dict - hotel information
+    :return: hotel address
+    """
+    message = _('no_information', msg)
+    if hotel.get('address'):
+        message = hotel.get('address').get('streetAddress', message)
+    return message
+
+
+def hotel_rating(rating: float, msg: Message) -> str:
+    """
+    returns rating hotel in asterisks view
+    :param rating: hotel rating
+    :param msg: Message
+    :return: string like asterisks view hotel rating
+    """
+    if not rating:
+        return _('no_information', msg)
+    return '⭐' * int(rating)
+
+
+def check_in_n_out_dates(check_in: datetime = None, check_out: datetime = None) -> dict:
+    """
+    Converts the dates of check-in and check-out into a string format, if no dates are specified, today and tomorrow are taken
+    :param check_in: check-in date
+    :param check_out: check-out date
+    :return: dict with check-in and check-out dates
+    """
+    dates = {}
+    if not check_in:
+        check_in = datetime.now()
+    if not check_out:
+        check_out = check_in + timedelta(1)
+
+    dates['check_in'] = check_in.strftime("%Y-%m-%d")
+    dates['check_out'] = check_out.strftime("%Y-%m-%d")
+
+    return dates

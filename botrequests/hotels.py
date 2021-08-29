@@ -1,13 +1,13 @@
-import re
 import os
-from datetime import timedelta, datetime
 
 import requests
 from dotenv import load_dotenv
 from loguru import logger
 from telebot.types import Message
 
-from data_processing.handling import redis_db, gen_key, internationalize as _
+from data_processing.handling import gen_key, check_in_n_out_dates, hotel_price, _, hotel_address, \
+    hotel_rating
+from bot_redis import redis_db
 
 load_dotenv()
 
@@ -31,7 +31,7 @@ def get_hotels(msg: Message) -> [list, None]:
         distance = float(redis_db.get(gen_key(msg, 'distance')))
         while next_page and next_page < 5 \
                 and float(data['results'][-1]['distance'].replace(',', '.').split()[0]) <= distance:
-            add_data = request_hotels(msg, next_page)  # json дата из сервера прям голая
+            add_data = request_hotels(msg, next_page)
             if 'bad_req' in data:
                 logger.warning('bad_request')
                 break
@@ -48,25 +48,6 @@ def get_hotels(msg: Message) -> [list, None]:
 
     data = generate_hotels_descriptions(data, msg)
     return data
-
-
-def check_in_n_out_dates(check_in: datetime = None, check_out: datetime = None) -> dict:
-    """
-    Converts the dates of check-in and check-out into a string format, if no dates are specified, today and tomorrow are taken
-    :param check_in: check-in date
-    :param check_out: check-out date
-    :return: dict with check-in and check-out dates
-    """
-    dates = {}
-    if not check_in:
-        check_in = datetime.now()
-    if not check_out:
-        check_out = check_in + timedelta(1)
-
-    dates['check_in'] = check_in.strftime("%Y-%m-%d")
-    dates['check_out'] = check_out.strftime("%Y-%m-%d")
-
-    return dates
 
 
 def request_hotels(msg, page: int = 1):
@@ -197,47 +178,3 @@ def generate_hotels_descriptions(hotels: dict, msg: Message) -> list[str]:
         )
         hotels_info.append(message)
     return hotels_info
-
-
-def hotel_rating(rating: float, msg: Message) -> str:
-    """
-    returns rating hotel in asterisks view
-    :param rating: hotel rating
-    :param msg: Message
-    :return: string like asterisks view hotel rating
-    """
-    if not rating:
-        return _('no_information', msg)
-    return '⭐' * int(rating)
-
-
-def hotel_price(hotel: dict) -> int:
-    """
-    return hotel price
-    :param hotel: dict - hotel information
-    :return: integer or float like number
-    """
-
-    price = 0
-    try:
-        if hotel.get('ratePlan').get('price').get('exactCurrent'):
-            price = hotel.get('ratePlan').get('price').get('exactCurrent')
-        else:
-            price = hotel.get('ratePlan').get('price').get('current')
-            price = int(re.sub(r'[^0-9]', '', price))
-    except Exception as e:
-        logger.warning(f'Hotel price getting error {e}')
-    return price
-
-
-def hotel_address(hotel: dict, msg: Message) -> str:
-    """
-    returns hotel address
-    :param msg: Message
-    :param hotel: dict - hotel information
-    :return: hotel address
-    """
-    message = _('no_information', msg)
-    if hotel.get('address'):
-        message = hotel.get('address').get('streetAddress', message)
-    return message

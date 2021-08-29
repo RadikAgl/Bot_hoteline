@@ -6,7 +6,8 @@ from telebot.types import Message, CallbackQuery
 from loguru import logger
 from dotenv import load_dotenv
 
-from data_processing.handling import redis_db, gen_key
+from data_processing.handling import gen_key
+from bot_redis import redis_db
 
 load_dotenv()
 
