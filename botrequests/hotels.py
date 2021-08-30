@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from loguru import logger
 from telebot.types import Message
 
-from data_processing.handling import gen_key, check_in_n_out_dates, hotel_price, _, hotel_address, \
+from utils.handling import check_in_n_out_dates, hotel_price, _, hotel_address, \
     hotel_rating
 from bot_redis import redis_db
 
@@ -20,15 +20,16 @@ def get_hotels(msg: Message) -> [list, None]:
     :param msg: Message
     :return: list with string like hotel descriptions
     """
-    data = request_hotels(msg) # json дата из сервера прям голая
+    parameters = redis_db.hgetall(msg.chat.id)
+    data = request_hotels(msg)
     if 'bad_req' in data:
         return ['bad_request']
     data = structure_hotels_info(msg, data)
     if not data or len(data['results']) < 1:
         return None
-    if redis_db.get(gen_key(msg, 'order')) == 'DISTANCE_FROM_LANDMARK':
+    if parameters['order'] == 'DISTANCE_FROM_LANDMARK':
         next_page = data.get('next_page')
-        distance = float(redis_db.get(gen_key(msg, 'distance')))
+        distance = float(parameters['distance'])
         while next_page and next_page < 5 \
                 and float(data['results'][-1]['distance'].replace(',', '.').split()[0]) <= distance:
             add_data = request_hotels(msg, next_page)
@@ -41,7 +42,7 @@ def get_hotels(msg: Message) -> [list, None]:
                 next_page = add_data['next_page']
             else:
                 break
-        quantity = int(redis_db.get(gen_key(msg, 'quantity')))
+        quantity = int(parameters['quantity'])
         data = choose_best_hotels(data['results'], distance, quantity)
     else:
         data = data['results']
@@ -58,24 +59,24 @@ def request_hotels(msg, page: int = 1):
     :return: response from hotel api
     """
     logger.info(f'Function {request_hotels.__name__} called with argument: page = {page}, msg = {msg}')
-
+    parameters = redis_db.hgetall(msg.chat.id)
     url = "https://hotels4.p.rapidapi.com/properties/list"
     dates = check_in_n_out_dates()
 
     querystring = {
         "adults1": "1",
         "pageNumber": page,
-        "destinationId": redis_db.get(gen_key(msg, 'destination_id')),
-        "pageSize": redis_db.get(gen_key(msg, 'quantity')),
+        "destinationId": parameters['destination_id'],
+        "pageSize": parameters['quantity'],
         "checkOut": dates['check_out'],
         "checkIn": dates['check_in'],
-        "sortOrder": redis_db.get(gen_key(msg, 'order')),
-        "locale": redis_db.get(gen_key(msg, 'locale')),
-        "currency": redis_db.get(gen_key(msg, 'currency'))
+        "sortOrder": parameters['order'],
+        "locale": parameters['locale'],
+        "currency": parameters['currency'],
     }
-    if redis_db.get(gen_key(msg, 'order')) == 'DISTANCE_FROM_LANDMARK':
-        querystring['priceMax'] = redis_db.get(gen_key(msg, 'max_price'))
-        querystring['priceMin'] = redis_db.get(gen_key(msg, 'min_price'))
+    if parameters['order'] == 'DISTANCE_FROM_LANDMARK':
+        querystring['priceMax'] = parameters['max_price']
+        querystring['priceMin'] = parameters['min_price']
         querystring['pageSize'] = '25'
 
     logger.info(f'Search parameters: {querystring}')
@@ -172,7 +173,7 @@ def generate_hotels_descriptions(hotels: dict, msg: Message) -> list[str]:
         message = (
             f"{_('hotel', msg)}: {hotel.get('name')}\n"
             f"{_('rating', msg)}: {hotel_rating(hotel.get('star_rating'), msg)}\n"
-            f"{_('price', msg)}: {hotel['price']} {redis_db.get(gen_key(msg, 'currency'))}\n"
+            f"{_('price', msg)}: {hotel['price']} {redis_db.hget(msg.chat.id, 'currency')}\n"
             f"{_('distance', msg)}: {hotel.get('distance')}\n"
             f"{_('address', msg)}: {hotel.get('address')}\n"
         )
