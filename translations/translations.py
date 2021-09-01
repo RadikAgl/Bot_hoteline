@@ -51,7 +51,7 @@ vocabulary = {
         'en': 'Enter the prices range separated by space'
     },
     'question_3': {
-        'ru': 'Введите радиус поиска от центра города',
+        'ru': 'Введите радиус поиска от центра города в км',
         'en': 'Enter the search radius from the city center in miles'
     },
     'question_4': {

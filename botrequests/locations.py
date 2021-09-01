@@ -2,11 +2,10 @@ import os
 import re
 
 import requests
-from telebot.types import Message, CallbackQuery
+from telebot.types import Message
 from loguru import logger
 from dotenv import load_dotenv
 
-from data_processing.handling import gen_key
 from bot_redis import redis_db
 
 load_dotenv()
@@ -37,7 +36,7 @@ def request_locations(msg):
 
     querystring = {
         "query": msg.text.strip(),
-        "locale": redis_db.get(gen_key(msg, 'locale'))
+        "locale": redis_db.hget(msg.chat.id, 'locale'),
     }
 
     headers = {

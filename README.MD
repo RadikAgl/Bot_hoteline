@@ -10,14 +10,14 @@
 * подбирать отели по лучшему соотношению цена/расстояние от центра города;  
 * задавать количество выводимых отелей;  
 * задавать диапазон цен.
-* Бот не использует и не запрашивает никакие персональные данные.
-* Двуязычная поддержка, зависимая от `language_code` от Telegram Bot API. 
+* бот не использует и не запрашивает никакие персональные данные.
+* двуязычная поддержка, зависимая от `language_code` от Telegram Bot API. 
   Так же есть возможность принудительного изменения языка в независимости от `language_code` 
 
 ## Requirements
 
 * Python 3.7+
-* [PyTelegramBotAPI](https://github.com/python-telegram-bot/python-telegram-bot) – Python Telegram Bot API
+* [pyTelegramBotAPI](https://github.com/python-telegram-bot/python-telegram-bot) – Python Telegram Bot API
 * [requests](https://github.com/psf/requests) - библиотека requests
 * [redis](https://redis.io/) - хранилище поисковых параметров каждого пользователя
 
