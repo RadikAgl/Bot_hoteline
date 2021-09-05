@@ -8,7 +8,7 @@ from loguru import logger
 from botrequests.hotels import get_hotels
 from botrequests.locations import exact_location, make_locations_list
 from utils.handling import internationalize as _, is_input_correct, get_parameters_information, \
-    make_message, steps, locales, logger_config, currencies
+    make_message, steps, locales, logger_config, currencies, is_user_in_db, add_user, extract_search_parameters
 from bot_redis import redis_db
 
 logger.configure(**logger_config)
@@ -51,6 +51,8 @@ def get_command_settings(message: Message) -> None:
     :param message: Message
     :return: None
     """
+    if not is_user_in_db(message):
+        add_user(message)
     logger.info(f'Функция {get_command_settings.__name__} вызвана с параметром: {message}')
     menu = telebot.types.InlineKeyboardMarkup()
     menu.add(telebot.types.InlineKeyboardButton(text=_("language_", message), callback_data='set_locale'))
@@ -69,6 +71,8 @@ def get_searching_commands(message: Message) -> None:
     :return: None
     """
     logger.info("\n" + "=" * 100 + "\n")
+    if not is_user_in_db(message):
+        add_user(message)
     chat_id = message.chat.id
     redis_db.hset(chat_id, 'state', 1)
     if 'lowprice' in message.text:
@@ -93,18 +97,10 @@ def get_command_help(message: Message) -> None:
     :param message: Message
     :return: None
     """
+    if not is_user_in_db(message):
+        add_user(message)
     if 'start' in message.text:
         logger.info(f'"start" command is called')
-        lang = message.from_user.language_code
-        if lang != 'ru':
-            lang = 'en'
-        redis_db.hset(message.chat.id, mapping={
-            "language": lang,
-            "state": 0,
-            "locale": locales[lang],
-            "currency": currencies[lang]
-        })
-
         bot.send_message(message.chat.id, _('hello', message))
     else:
         logger.info(f'"help" command is called')
@@ -123,18 +119,22 @@ def keyboard_handler(call: CallbackQuery) -> None:
     bot.edit_message_reply_markup(chat_id=chat_id, message_id=call.message.message_id)
 
     if call.data.startswith('code'):
-        loc_name = exact_location(call.message.json, call.data)
-        redis_db.hset(chat_id, mapping={"destination_id": call.data[4:], "destination_name": loc_name})
-        logger.info(f"{loc_name} selected")
-        bot.send_message(
-            chat_id,
-            f"{_('loc_selected', call.message)}: {loc_name}",
-        )
-        if redis_db.hget(chat_id, 'order') == 'DISTANCE_FROM_LANDMARK':
-            redis_db.hincrby(chat_id, 'state', 1)
+        if redis_db.hget(chat_id, 'state') != '1':
+            bot.send_message(call.message.chat.id, _('enter_command', call.message))
+            redis_db.hset(chat_id, 'state', 0)
         else:
-            redis_db.hincrby(chat_id, 'state', 3)
-        bot.send_message(chat_id, make_message(call.message, 'question_'))
+            loc_name = exact_location(call.message.json, call.data)
+            redis_db.hset(chat_id, mapping={"destination_id": call.data[4:], "destination_name": loc_name})
+            logger.info(f"{loc_name} selected")
+            bot.send_message(
+                chat_id,
+                f"{_('loc_selected', call.message)}: {loc_name}",
+            )
+            if redis_db.hget(chat_id, 'order') == 'DISTANCE_FROM_LANDMARK':
+                redis_db.hincrby(chat_id, 'state', 1)
+            else:
+                redis_db.hincrby(chat_id, 'state', 3)
+            bot.send_message(chat_id, make_message(call.message, 'question_'))
 
     elif call.data.startswith('set'):
         redis_db.hset(chat_id, 'state', 0)
@@ -207,7 +207,8 @@ def hotels_list(msg: Message) -> None:
     """
     chat_id = msg.chat.id
     wait_msg = bot.send_message(chat_id, _('wait', msg))
-    hotels = get_hotels(msg)
+    params = extract_search_parameters(msg)
+    hotels = get_hotels(msg, params)
     logger.info(f'Function {get_hotels.__name__} returned: {hotels}')
     bot.delete_message(chat_id, wait_msg.id)
     if not hotels or len(hotels) < 1:
@@ -229,8 +230,9 @@ def get_text_messages(message) -> None:
     :param message: Message
     :return: None
     """
+    if not is_user_in_db(message):
+        add_user(message)
     state = redis_db.hget(message.chat.id, 'state')
-    logger.info(f"{state} - {type(state)}")
     if state == '1':
         get_locations(message)
     elif state in ['2', '3', '4']:
