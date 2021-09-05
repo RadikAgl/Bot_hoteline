@@ -167,4 +167,9 @@ vocabulary = {
         'ru': 'Нет данных',
         'en': 'No information'
     },
+    'enter_command': {
+            'ru': 'Пожалуйста, сначала введите нужную команду',
+            'en': 'Please, first enter the command you want'
+        },
+
 }

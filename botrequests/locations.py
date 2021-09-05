@@ -46,7 +46,7 @@ def request_locations(msg):
     logger.info(f'Parameters for search locations: {querystring}')
 
     try:
-        response = requests.request("GET", url, headers=headers, params=querystring)
+        response = requests.request("GET", url, headers=headers, params=querystring, timeout=20)
         data = response.json()
         logger.info(f'Hotels api(locations) response received: {data}')
 
@@ -56,6 +56,8 @@ def request_locations(msg):
         return data
     except requests.exceptions.RequestException as e:
         logger.error(f'Server error: {e}')
+    except Exception as e:
+        logger.error(f'Error: {e}')
 
 
 def make_locations_list(msg: Message) -> dict:

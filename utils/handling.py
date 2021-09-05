@@ -173,3 +173,46 @@ def check_in_n_out_dates(check_in: datetime = None, check_out: datetime = None) 
     dates['check_out'] = check_out.strftime("%Y-%m-%d")
 
     return dates
+
+
+def add_user(msg: Message) -> None:
+    """
+    adds user to redis database
+    :param msg: Message
+    :return: None
+    """
+    logger.info("add_user called")
+    chat_id = msg.chat.id
+    lang = msg.from_user.language_code
+    if lang != 'ru':
+        lang = 'en'
+    redis_db.hset(chat_id, mapping={
+        "language": lang,
+        "state": 0,
+        "locale": locales[lang],
+        "currency": currencies[lang]
+    })
+
+
+def is_user_in_db(msg: Message) -> bool:
+    """
+    checks if is user in redis database
+    :param msg: Message
+    :return: True if user in database
+    """
+    logger.info('is_user_in_db called')
+    chat_id = msg.chat.id
+    return redis_db.hget(chat_id, 'state') and redis_db.hget(chat_id, 'language')
+
+
+def extract_search_parameters(msg: Message) -> dict:
+    """
+    extracts users search parameters from redis database
+    :param msg: Message
+    :return: dict with search parameters
+    """
+    logger.info(f"Function {extract_search_parameters.__name__} called")
+    params = redis_db.hgetall(msg.chat.id)
+    logger.info(f"parameters: {params}")
+    return params
+

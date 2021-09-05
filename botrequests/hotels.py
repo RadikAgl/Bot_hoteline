@@ -14,14 +14,14 @@ load_dotenv()
 X_RAPIDAPI_KEY = os.getenv('RAPID_API_KEY')
 
 
-def get_hotels(msg: Message) -> [list, None]:
+def get_hotels(msg: Message, parameters: dict) -> [list, None]:
     """
     calls the required functions to take and process the hotel data
     :param msg: Message
+    :param parameters: search parameters
     :return: list with string like hotel descriptions
     """
-    parameters = redis_db.hgetall(msg.chat.id)
-    data = request_hotels(msg)
+    data = request_hotels(parameters)
     if 'bad_req' in data:
         return ['bad_request']
     data = structure_hotels_info(msg, data)
@@ -32,7 +32,7 @@ def get_hotels(msg: Message) -> [list, None]:
         distance = float(parameters['distance'])
         while next_page and next_page < 5 \
                 and float(data['results'][-1]['distance'].replace(',', '.').split()[0]) <= distance:
-            add_data = request_hotels(msg, next_page)
+            add_data = request_hotels(parameters, next_page)
             if 'bad_req' in data:
                 logger.warning('bad_request')
                 break
@@ -51,15 +51,14 @@ def get_hotels(msg: Message) -> [list, None]:
     return data
 
 
-def request_hotels(msg, page: int = 1):
+def request_hotels(parameters: dict, page: int = 1):
     """
     request information from the hotel api
-    :param msg: Message
+    :param parameters: search parameters
     :param page: page number
     :return: response from hotel api
     """
-    logger.info(f'Function {request_hotels.__name__} called with argument: page = {page}, msg = {msg}')
-    parameters = redis_db.hgetall(msg.chat.id)
+    logger.info(f'Function {request_hotels.__name__} called with argument: page = {page}, parameters = {parameters}')
     url = "https://hotels4.p.rapidapi.com/properties/list"
     dates = check_in_n_out_dates()
 
@@ -87,7 +86,7 @@ def request_hotels(msg, page: int = 1):
     }
 
     try:
-        response = requests.request("GET", url, headers=headers, params=querystring)
+        response = requests.request("GET", url, headers=headers, params=querystring, timeout=20)
         data = response.json()
         if data.get('message'):
             raise requests.exceptions.RequestException
@@ -100,6 +99,7 @@ def request_hotels(msg, page: int = 1):
         return {'bad_req': 'bad_req'}
     except Exception as e:
         logger.info(f'Error in function {request_hotels.__name__}: {e}')
+        return {'bad_req': 'bad_req'}
 
 
 def structure_hotels_info(msg: Message, data: dict) -> dict:
@@ -141,8 +141,8 @@ def structure_hotels_info(msg: Message, data: dict) -> dict:
 
 def choose_best_hotels(hotels: list[dict], distance: float, limit: int) -> list[dict]:
     """
-    deletes hotels that have a greater distance from the city center than the specified one, sorts the rest by price in order
-    increasing and limiting the selection
+    deletes hotels that have a greater distance from the city center than the specified one, sorts the rest by price
+    in order increasing and limiting the selection
     :param limit: number of hotels
     :param distance: maximum distance from city center
     :param hotels: structured hotels data
